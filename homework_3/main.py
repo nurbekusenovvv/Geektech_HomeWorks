@@ -1,4 +1,4 @@
-from aiogram import Bot, Dispatcher, types, executor
+from aiogram import Bot, Dispatcher, executor, types
 from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
@@ -7,73 +7,87 @@ import config
 import logging
 import os
 
-bot = Bot(config.token)
+bot = Bot(token=config.token)
 dp = Dispatcher(bot, storage=MemoryStorage())
 storage = MemoryStorage()
 logging.basicConfig(level=logging.INFO)
 
-@dp.message_handler(commands = ['start', 'go'])
-async def start(msg:types.Message):
-    await msg.answer(f"Здраствуйте {msg.from_user.first_name}")
 
-def downloader(url, type):
-    yt = YouTube(url)
-    if type == "video":
-        yt.streams.filter(progressive = True, file_extension = 'mp4').order_by('resolution').desc().first().download("video", f"{yt.title}.mp4")
-        return f"{yt.title}.mp4"
-    elif type == "audio":
-        yt.streams.filter(only_audio=True).first().download("audio", f"{yt.title}.mp3")
-        return f"{yt.title}.mp3"
+@dp.message_handler(commands=['start'])
+async def start(message: types.Message):
+    await message.answer(f"""Здраствуйте, {message.from_user.full_name}
+    Я вам помогу скачать аудио или же видео с ютуба""")
 
-class DownloadVideo(StatesGroup):
-    download = State()
 
 class DownloadAudio(StatesGroup):
     download = State()
 
-@dp.message_handler(commands='video')
-async def video(msg:types.Message):
-        await msg.answer(f"Отправьте ссылку и я вам его скачаю")
-        await DownloadVideo.download.set()
 
-@dp.message_handler(commands='audio')
-async def audio(msg:types.Message):
-        await msg.answer(f"Отправьте ссылку и я вам скачаю его в mp3")
-        await DownloadAudio.download.set()
+class DownloadVideo(StatesGroup):
+    download = State()
+
+
+def download(url, type):
+    yt = YouTube(url)
+    if type == "audio":
+        yt.streams.filter(only_audio=True).first().download("audio", f"{yt.title}.mp3")
+        return f"{yt.title}.mp3"
+    elif type == "video":
+        yt.streams.filter(progressive=True, file_extension="mp4").first().download("video", f"{yt.title}.mp4")
+        return f"{yt.title}.mp4"
+
+
+@dp.message_handler(text=["Аудио", "аудио", "Audio", "audio"])
+async def audio(message: types.Message):
+    await message.answer("Отправьте ссылку на видео и я вам отправлю его в mp3")
+    await DownloadAudio.download.set()
+
+
+@dp.message_handler(text=["Видео", "видео", "Video", "video"])
+async def video(message: types.Message):
+    await message.answer("Отправьте ссылку на видео в ютубе и я вам его отправлю")
+    await DownloadVideo.download.set()
+
+
+@dp.message_handler(state=DownloadAudio.download)
+async def download_audio(message: types.Message, state: FSMContext):
+    try:
+        title = download(message.text, "audio")
+        audio = open(f"audio/{title}", "rb")
+        await message.answer("Скачиваем файл ожидайте...")
+        try:
+            await message.answer("Все скачалось вот держи")
+            await bot.send_audio(message.chat.id, audio)
+        except:
+            await message.answer("Произошла ошибка, попробуйте позже")
+        await state.finish()
+    except:
+        await message.answer("Неверная ссылка на видео")
+        await state.finish()
+    os.remove(f'audio/{title}')
 
 
 @dp.message_handler(state=DownloadVideo.download)
-async def download_video_state(msg:types.Message, state:FSMContext):
+async def download_video(message: types.Message, state: FSMContext):
     try:
-        await msg.answer("Скачиваем видео, ожидайте...")
-        title = downloader(msg.text, "video")
-        video = open(f'video/{title}', 'rb')
+        title = download(message.text, "video")
+        video = open(f"video/{title}", "rb")
+        await message.answer("Скачиваем видео файл ожидайте...")
         try:
-            await msg.answer("Все скачалось, вот видео")
-            await bot.send_video(msg.chat.id, video)
-        except Exception as error:
-            await msg.answer(f"Произошла ошибка, повторите еще раз. {error}")
-            await state.finish()
+            await message.answer("Все скачалось вот держи")
+            await bot.send_video(message.chat.id, video)
+        except:
+            await message.answer("Произошла ошибка, попробуйте позже")
+        await state.finish()
     except:
-        await  msg.answer(("Ссылка не верна!"))
-        await  state.finish()
+        await message.answer("Неверная ссылка на видео")
+        await state.finish()
     os.remove(f'video/{title}')
 
-@dp.message_handler(state=DownloadAudio.download)
-async def download_audio_state(msg:types.Message, state:FSMContext):
-    try:
-        await msg.answer("Скачиваем аудио, ожидайте...")
-        title = downloader(msg.text, "audio")
-        audio = open(f'audio/{title}', 'rb')
-        try:
-            await msg.answer("Все скачалось, вот аудио")
-            await bot.send_audio(msg.chat.id, audio)
-        except Exception as error:
-            await msg.answer(f"Произошла ошибка, повторите еще раз. {error}")
-            await state.finish()
-    except:
-        await  msg.answer(("Ссылка не верна!"))
 
-    os.remove(f'audio/{title}')
+@dp.message_handler()
+async def not_found(message: types.Message):
+    await message.reply("Я вас не понял")
+
 
 executor.start_polling(dp)
