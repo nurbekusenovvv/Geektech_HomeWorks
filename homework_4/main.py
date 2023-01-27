@@ -6,7 +6,6 @@ from aiogram.types import ReplyKeyboardMarkup,KeyboardButton,InlineKeyboardMarku
 import config
 import sqlite3
 import logging
-from sqlite3 import Error
 import datetime
 
 bot = Bot(config.token)
@@ -44,6 +43,13 @@ cur.execute("""CREATE TABLE  IF NOT EXISTS address(
     """)
 start_connect.commit()
 
+inline_kb = [
+        [InlineKeyboardButton("Отправить контакт", request_contact=True)],
+        [InlineKeyboardButton("Отправитьлокацию",request_location=True)],
+        [InlineKeyboardButton("Заказать еду!", callback_data = "Заказать еду!")],
+    ]
+inline_keyboard = InlineKeyboardMarkup(inline_keyboard=inline_kb)
+
 kb = [
     [KeyboardButton("Отправить контакт", request_contact=True)],
     [KeyboardButton("Заказать еду!")],
@@ -57,7 +63,7 @@ keyboard = ReplyKeyboardMarkup(keyboard=kb, resize_keyboard=True, one_time_keybo
 @dp.message_handler(commands=["start"])
 async def start(message : types.Message):
 
-    try:
+    # try:
         cur  = start_connect.cursor()
         cur.execute(f"SELECT chat_id FROM users WHERE  chat_id  == {message.from_user.id};")
         result = cur.fetchall()
@@ -65,8 +71,10 @@ async def start(message : types.Message):
             cur.execute(f"INSERT INTO users (first_name, last_name, username, chat_id)VALUES ('{message.from_user.first_name}',  '{message.from_user.last_name}','{message.from_user.username}',{message.chat.id});")
             start_connect.commit()
         await message.answer(f"Здравстуйте ,{message.from_user.full_name}. Вас приветствует администрация Geektech.\nЕсли хотите узнать обо мне больше нажмите: /help ", reply_markup=keyboard)
-    except:
-        await message.answer("Вышли не большие ошибки обратитесь тех.админу: ")
+        await message.answer("Вот что я могу", reply_markup=inline_keyboard)
+        
+    # except:
+    #     await message.answer("Вышли не большие ошибки обратитесь тех.админу: ")
 
 @dp.message_handler(content_types=types.ContentType.CONTACT)
 async def get_contact(msg:types.Message):
