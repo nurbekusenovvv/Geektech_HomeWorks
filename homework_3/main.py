@@ -3,11 +3,13 @@ from aiogram.dispatcher.filters.state import StatesGroup, State
 from aiogram.contrib.fsm_storage.memory import MemoryStorage
 from aiogram.dispatcher import FSMContext
 from pytube import YouTube
+from aiogram.types import KeyboardButton, ReplyKeyboardMarkup,InlineKeyboardButton,InlineKeyboardMarkup
 import config
 import logging
 import os
 
 bot = Bot(token=config.token)
+print(bot)
 dp = Dispatcher(bot, storage=MemoryStorage())
 storage = MemoryStorage()
 logging.basicConfig(level=logging.INFO)
@@ -15,8 +17,18 @@ logging.basicConfig(level=logging.INFO)
 
 @dp.message_handler(commands=['start'])
 async def start(message: types.Message):
-    await message.answer(f"""Здраствуйте, {message.from_user.full_name}
-    Я вам помогу скачать аудио или же видео с ютуба""")
+    kb = [
+        [KeyboardButton("/audio")],
+        [KeyboardButton("/video")],
+        [KeyboardButton("/help")],
+        [KeyboardButton("/contact",request_contact=True)],
+        [KeyboardButton("/location",request_location=True)]
+    ]
+    keyboard = ReplyKeyboardMarkup(keyboard=kb,resize_keyboard=True,one_time_keyboard=True,
+                                   input_field_placeholder="выберите вариант загрузки")
+
+
+    await message.answer(f"Здраствуйте, {message.from_user.full_name}",reply_markup=keyboard)
 
 
 class DownloadAudio(StatesGroup):
@@ -37,13 +49,17 @@ def download(url, type):
         return f"{yt.title}.mp4"
 
 
-@dp.message_handler(text=["Аудио", "аудио", "Audio", "audio"])
+@dp.message_handler(commands=["Аудио", "аудио", "Audio", "audio"])
 async def audio(message: types.Message):
     await message.answer("Отправьте ссылку на видео и я вам отправлю его в mp3")
     await DownloadAudio.download.set()
 
+@dp.message_handler(commands=["help"])
+async def audio(message: types.Message):
+    await message.answer("что то")
 
-@dp.message_handler(text=["Видео", "видео", "Video", "video"])
+
+@dp.message_handler(commands=["Видео", "видео", "Video", "video"])
 async def video(message: types.Message):
     await message.answer("Отправьте ссылку на видео в ютубе и я вам его отправлю")
     await DownloadVideo.download.set()
